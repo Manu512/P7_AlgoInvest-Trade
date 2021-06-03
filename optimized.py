@@ -2,7 +2,6 @@
 import csv
 import os
 import time
-import itertools as it
 
 data_folder = "data/"
 
@@ -19,8 +18,16 @@ class Data:
         """
         Methode qui va cherche le fichier à analyser
         """
+        # print('Saisir le nom du fichier à analyser [action.csv si vide][1 = dataset1_Python+P7.csv][2 = '
+        #       'dataset1_Python+P7.csv]:')
+        # file = input('---->')
+        # if file == '':
+        # file = 'action.csv'
+        # elif file == "1":
+        #     file = 'dataset1_Python+P7.csv'
+        # elif file == "2":
+        #     file = 'dataset2_Python+P7.csv'
         file = 'action.csv'
-
         file_to_open = data_folder + file
 
         if os.path.exists(file_to_open):
@@ -44,6 +51,7 @@ class Action:
     """
     Class permettant d'instancer une action
     """
+
     def __new__(cls, args):
         """
 
@@ -74,27 +82,59 @@ class Action:
         return self.taux > other.taux
 
 
-def bruteforce(data: list, investissement: float):
+def optimized(data: list, investissement: float):
+
+    investissement = int(investissement * 100)
+
+    matrice = [[0 for x in range(investissement + 1)] for x in range(len(data) + 1)]
+
+    for i in range(1, len(data) + 1):  # parcours des actions
+        for w in range(1, investissement + 1):  # parcours du montant a investir (*100 pour gérer les centimes)
+            valeur_action = int(data[i - 1].value * 100)
+            if valeur_action <= w:  # si il me reste des fonds pour investir/acheter l'action je
+                # verifie si j'augmente mon profit en achetant celle ci.
+                matrice[i][w] = max(data[i - 1].profit + matrice[i - 1][int(w - valeur_action)], matrice[i - 1][w])
+            else:
+                matrice[i][w] = matrice[i - 1][w]
+
+    # retrouver les éléments en fonction de la somme
+    w = investissement
+    n = len(data)
+    data_selection = []
+
+    while w >= 0 and n >= 0:
+        v = int(data[n - 1].value * 100)  # valeur de l'action * 100 pour les centimes.
+        d = data[n - 1].profit  # Valeur du profit
+        if matrice[n][w] == matrice[n - 1][w - v] + d:
+            data_selection.append(data[n - 1])
+            w -= v
+        n -= 1
+
+    t = sum([v.value for v in data_selection])
+
+    return data_selection, t, matrice[-1][-1]
+
+
+def glouton(data: list, investissement: float):
     """
-    methode de bruteforce pour tester toutes les combinaisons possibles.
-    complexité O(2^n)
+    Methode naive pour l'achat d'actions
     :param data: liste d'action contenant 4 attributs (name, value, taux, profit)
     :param investissement: montant d'investissement
     :return: un tuple composé d'un tuple de 5 proposition d'investissement, le montant placé, le profit
     """
-
     liste = []
-    for n in range(1, len(data) + 1):
-        for combination in it.combinations(data, n):
-            somme = 0
-            profit = 0
-            for action in combination:
-                somme = somme + action.value
-                profit = profit + action.profit
-            if somme <= investissement:
-                liste.append((combination, somme, profit))
-    liste.sort(key=lambda x: x[2], reverse=True)
-    return liste[:5]
+    profit, somme = 0, 0
+
+    data.sort(reverse=True)
+    remain = investissement
+    for i in range(0, len(data)):
+        if (data[i].value > 0) and (data[i].profit > 0) and remain - data[i].value > 0:
+            remain = remain - data[i].value
+            liste.append(data[i])
+            somme = somme + data[i].value
+            profit = profit + data[i].profit
+
+    return liste, somme, profit
 
 
 def affichage(data, data_time=None):
@@ -104,11 +144,11 @@ def affichage(data, data_time=None):
     :param data: donnée venant de l'algorithme
     """
     print('------------------------------------------------------------')
-    print('------------------------ Bruteforce ------------------------')
+    print('------------------------ Optimized ------------------------')
     print('------------------------------------------------------------')
 
     print('La meilleur proposition est la suivante : {0}\nAvec une dépense totale de : {1:.2f} \nAvec un profit '
-          'espéré de : {2:.2f}'.format(data[0][0], data[0][1], data[0][2]))
+          'espéré de : {2:.2f}'.format(data[0], data[1], data[2]))
     print('------------------------------------------------------------')
     print('Calculé en {0:.2f} secondes'.format(data_time))
 
@@ -116,9 +156,17 @@ def affichage(data, data_time=None):
 def main():
     action = Data().load_actions()
     start = time.time()
-    proposition = bruteforce(action, 500)
+    proposition = optimized(action, 500)
     stop = time.time()
     duree = stop - start
+    print(proposition)
+    affichage(proposition, duree)
+
+    start = time.time()
+    proposition = glouton(action, 500)
+    stop = time.time()
+    duree = stop - start
+    print(proposition)
     affichage(proposition, duree)
 
 main()
